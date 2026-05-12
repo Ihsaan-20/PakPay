@@ -1,0 +1,16 @@
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
+# Backend
+backend/target/
+backend/.mvn/
+*.class
+*.jar
+
+# IDEs
+.idea/
+.vscode/
+.settings/
+.classpath
+.project
