@@ -12,7 +12,7 @@ PakPay is a secure, full-stack digital payment application designed to handle re
 
 \- \*\*Secure Transfers:\*\* Multi-step verification including Receiver Validation and \*\*Transaction PIN\*\* security.
 
-\- \*\*EMVCo Standard QR:\*\* Generates professional \*\*EMV-compliant QR Codes\*\* with embedded \*\*NayaPay IBAN\*\* and CRC checksum.
+\- \*\*EMVCo Standard QR:\*\* Generates professional \*\*EMV-compliant QR Codes\*\* and CRC checksum.
 
 \- \*\*Idempotency Logic:\*\* Prevents duplicate payments using custom `X-Idempotency-Key` headers.
 
