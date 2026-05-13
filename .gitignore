@@ -8,6 +8,11 @@ backend/.mvn/
 *.class
 *.jar
 
+# Ignore Spring Boot config (NOT recommended usually)
+pakpay/src/main/resources/application.properties
+
+pakpay/target
+
 # IDEs
 .idea/
 .vscode/
