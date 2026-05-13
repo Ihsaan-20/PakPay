@@ -10,8 +10,8 @@ backend/.mvn/
 
 
 # Spring Boot config
-**/application.properties
-**/application.yml
+# **/application.properties
+# **/application.yml
 
 pakpay/target
 
