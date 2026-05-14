@@ -10,10 +10,14 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOriginPatterns("http://localhost:[*]") // Localhost ke saare ports (5173, 3000, etc) allow ho jayenge
+                .allowedOriginPatterns(
+                        "http://localhost:*",
+                        "http://127.0.0.1:*",
+                        "https://paypak-reactjs.vercel.app"
+                )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
-                .exposedHeaders("X-Idempotency-Key") // Taake frontend header ko dekh sakay
+                .exposedHeaders("X-Idempotency-Key", "Authorization")
                 .allowCredentials(true);
     }
 }
