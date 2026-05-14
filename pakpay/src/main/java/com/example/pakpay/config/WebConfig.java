@@ -13,7 +13,8 @@ public class WebConfig implements WebMvcConfigurer {
                 .allowedOriginPatterns(
                         "http://localhost:*",
                         "http://127.0.0.1:*",
-                        "https://paypak-reactjs.vercel.app"
+                        "https://paypak-reactjs.vercel.app",
+                        "https://paypak-reactjs-r0oc41kl2-ihsaan-20s-projects.vercel.app/login"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
