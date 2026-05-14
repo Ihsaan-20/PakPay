@@ -42,7 +42,7 @@ public class SecurityConfig {
         CorsConfiguration configuration = new CorsConfiguration();
         
         // 1. Exact origins or patterns
-        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:[*]")); 
+        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:[*]","https://pakpay-reactjs.vercel.app")); 
         
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         
