@@ -14,7 +14,7 @@ public class WebConfig implements WebMvcConfigurer {
                         "http://localhost:*",
                         "http://127.0.0.1:*",
                         "https://paypak-reactjs.vercel.app",
-                        "https://paypak-reactjs-r0oc41kl2-ihsaan-20s-projects.vercel.app/login"
+                        "https://pakpay-reactjs-pynjpcinh-ihsaan-20s-projects.vercel.app"
                 )
                 .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                 .allowedHeaders("*")
