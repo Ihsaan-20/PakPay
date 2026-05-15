@@ -16,4 +16,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long> 
     Transaction findByTrxId(String trxId);
     
     Optional<Transaction> findByIdempotencyKey(String idempotencyKey);
+
+    List<Transaction> findByTypeAndSenderWalletIdIsNull(String type);
 }

@@ -33,6 +33,10 @@ public class Transaction {
     private LocalDateTime createdAt = LocalDateTime.now();
     
     // Aapke SQL mein 'type' column bhi hai, usay bhi add kar dein warna error ayega
-    @Column(name = "type", columnDefinition = "ENUM('WALLET_TRANSFER', 'IBFT', 'BILL_PAYMENT')")
+    @Column(name = "type", length = 32)
     private String type = "WALLET_TRANSFER";
+
+    /** Display label e.g. bank name for deposits */
+    @Column(name = "description", length = 255)
+    private String description;
 }

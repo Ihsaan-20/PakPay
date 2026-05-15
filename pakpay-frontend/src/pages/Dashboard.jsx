@@ -6,7 +6,7 @@ import {
   ArrowUpRight, ArrowDownLeft, History, LogIn, QrCode
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { walletService } from '../services/api';
+import { walletService, addMoneyService } from '../services/api';
 import { useToast } from '../components/ToastProvider';
 import {
   getApiErrorMessage,
@@ -14,7 +14,9 @@ import {
   validateAmount,
   validateMobile,
   validateTransactionPin,
+  isCreditTransaction,
 } from '../utils/validation';
+import AddMoneyModal from '../components/AddMoneyModal';
 
 const isAuthed = () => !!localStorage.getItem('token');
 
@@ -74,6 +76,21 @@ const Dashboard = () => {
   const [qrLoading, setQrLoading] = useState(false);
   const [qrError, setQrError] = useState(null);
   const [qrString, setQrString] = useState("");
+
+  const [addMoneyOpen, setAddMoneyOpen] = useState(false);
+
+  const fetchProfile = useCallback(async () => {
+    if (!isAuthed()) return;
+    try {
+      const res = await addMoneyService.getProfile();
+      if (res.data?.fullName) {
+        setUserData((prev) => ({ ...prev, name: res.data.fullName }));
+        localStorage.setItem('fullName', res.data.fullName);
+      }
+    } catch {
+      /* keep stored name */
+    }
+  }, []);
 
   // --- 2. Real-Time Balance Fetch Logic ---
   const fetchBalance = useCallback(async () => {
@@ -189,7 +206,8 @@ const Dashboard = () => {
     }
     fetchBalance();
     fetchLastTransaction();
-  }, [fetchBalance, fetchLastTransaction, navigate]);
+    fetchProfile();
+  }, [fetchBalance, fetchLastTransaction, fetchProfile, navigate]);
 
   // Doosri device/browser par balance update: focus, tab visible, polling
   // Same machine do tabs: localStorage 'balance' sync
@@ -227,7 +245,7 @@ const Dashboard = () => {
       window.removeEventListener('pakpay:session-expired', onSessionExpired);
       clearInterval(pollId);
     };
-  }, [fetchBalance, fetchLastTransaction]);
+  }, [fetchBalance, fetchLastTransaction, fetchProfile]);
 
   // --- 3. Handlers ---
   const handleLogout = () => {
@@ -358,8 +376,8 @@ const Dashboard = () => {
       </div>
     );
   } else if (lastTx) {
-    const isSent = String(lastTx.type || "").toUpperCase() === "SENT";
-    const amountPrefix = isSent ? "-" : "+";
+    const isCredit = isCreditTransaction(lastTx.type);
+    const amountPrefix = isCredit ? "+" : "-";
     const statusOk = String(lastTx.status || "").toUpperCase() === "SUCCESS";
     const when = lastTx.date
       ? new Date(lastTx.date).toLocaleString(undefined, {
@@ -371,7 +389,7 @@ const Dashboard = () => {
       <div className="flex items-center justify-between p-5 bg-white/[0.02] border border-white/5 rounded-[2rem]">
         <div className="flex items-center gap-4 min-w-0">
           <div className="h-12 w-12 shrink-0 bg-white/5 rounded-2xl flex items-center justify-center text-slate-500">
-            {isSent ? <ArrowUpRight /> : <ArrowDownLeft />}
+            {isCredit ? <ArrowDownLeft className="text-emerald-400" /> : <ArrowUpRight />}
           </div>
           <div className="min-w-0">
             <h4 className="font-bold text-sm truncate">{lastTx.otherPartyMobile || "Transaction"}</h4>
@@ -379,7 +397,7 @@ const Dashboard = () => {
           </div>
         </div>
         <div className="text-right shrink-0 pl-3">
-          <span className={`font-black text-sm block ${isSent ? "text-white" : "text-emerald-400"}`}>
+          <span className={`font-black text-sm block ${isCredit ? "text-emerald-400" : "text-white"}`}>
             {amountPrefix} Rs. {Number(lastTx.amount).toLocaleString()}
           </span>
           <span className={`text-[10px] font-black uppercase mt-1 inline-block ${statusOk ? "text-emerald-500/90" : "text-amber-400"}`}>
@@ -413,7 +431,7 @@ const Dashboard = () => {
         <header className="flex justify-between items-center mb-10">
           <div>
             <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.2em]">Premium Member</p>
-            <h2 className="text-2xl font-black tracking-tight">{userData.name.split(' ')[0]} 👋</h2>
+            <h2 className="text-2xl font-black tracking-tight leading-tight">{userData.name} 👋</h2>
           </div>
           <div className="flex gap-3">
              <button
@@ -458,11 +476,12 @@ const Dashboard = () => {
               type="button"
               onClick={() => {
                 if (!requireAuth()) return;
+                setAddMoneyOpen(true);
               }}
               className="bg-white/[0.03] border border-white/10 p-8 rounded-[2.5rem] flex flex-col items-center gap-4 hover:bg-white/[0.06] transition-all group text-white"
             >
               <div className="h-14 w-14 bg-emerald-500 rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform"><Plus size={24}/></div>
-              <span className="text-xs font-black uppercase tracking-widest text-slate-300">Deposit</span>
+              <span className="text-xs font-black uppercase tracking-widest text-slate-300">Add Money</span>
             </button>
           </div>
           <button
@@ -627,8 +646,8 @@ const Dashboard = () => {
                     <p className="text-center text-sm text-slate-500 font-bold uppercase tracking-widest py-8">No transactions yet</p>
                   ) : (
                     history.map((item) => {
-                      const isSent = String(item.type || "").toUpperCase() === "SENT";
-                      const amountPrefix = isSent ? "-" : "+";
+                      const isCredit = isCreditTransaction(item.type);
+                      const amountPrefix = isCredit ? "+" : "-";
                       const statusOk = String(item.status || "").toUpperCase() === "SUCCESS";
                       const when = item.date
                         ? new Date(item.date).toLocaleString(undefined, {
@@ -643,7 +662,7 @@ const Dashboard = () => {
                         >
                           <div className="flex items-center gap-4 min-w-0">
                             <div className="h-12 w-12 shrink-0 bg-white/5 rounded-2xl flex items-center justify-center text-slate-500">
-                              {isSent ? <ArrowUpRight /> : <ArrowDownLeft />}
+                              {isCredit ? <ArrowDownLeft className="text-emerald-400" /> : <ArrowUpRight />}
                             </div>
                             <div className="min-w-0">
                               <h4 className="font-bold text-sm truncate">{item.otherPartyMobile || "Transaction"}</h4>
@@ -652,7 +671,7 @@ const Dashboard = () => {
                             </div>
                           </div>
                           <div className="text-right shrink-0 pl-3">
-                            <span className={`font-black text-sm block ${isSent ? "text-white" : "text-emerald-400"}`}>
+                            <span className={`font-black text-sm block ${isCredit ? "text-emerald-400" : "text-white"}`}>
                               {amountPrefix} Rs. {Number(item.amount).toLocaleString()}
                             </span>
                             <span
@@ -769,6 +788,19 @@ const Dashboard = () => {
             </>
           )}
         </AnimatePresence>
+
+        <AddMoneyModal
+          open={addMoneyOpen}
+          onClose={() => setAddMoneyOpen(false)}
+          onSuccess={(newBalance) => {
+            if (newBalance != null) {
+              setUserData((prev) => ({ ...prev, balance: parseFloat(newBalance) }));
+              localStorage.setItem('balance', String(newBalance));
+            }
+            fetchBalance();
+            fetchLastTransaction();
+          }}
+        />
       </main>
     </div>
   );

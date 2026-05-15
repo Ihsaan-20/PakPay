@@ -50,6 +50,16 @@ export const authService = {
   },
 };
 
+export const addMoneyService = {
+  getBanks: () => api.get('/add-money/banks'),
+  getProfile: () => api.get('/add-money/profile'),
+  getLinkedAccounts: () => api.get('/add-money/linked-accounts'),
+  sendLinkOtp: (body) => api.post('/add-money/link/send-otp', body),
+  verifyLinkOtp: (body) => api.post('/add-money/link/verify-otp', body),
+  deposit: (linkedAccountId, amount) =>
+    api.post('/add-money/deposit', { linkedAccountId, amount: Number(amount) }),
+};
+
 export const walletService = {
   // Step 1: Check if receiver exists
   checkReceiver: (mobile) => api.get(`/wallets/check/${mobile}`),

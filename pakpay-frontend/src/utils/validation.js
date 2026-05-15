@@ -67,6 +67,12 @@ export function validateAmount(amount) {
   return null;
 }
 
+/** Credit (money in) vs debit for activity/history UI */
+export function isCreditTransaction(type) {
+  const t = String(type || '').toUpperCase();
+  return t === 'RECEIVED' || t === 'ADD_MONEY' || t === 'BANK_DEPOSIT';
+}
+
 /** Extract user-facing message from API error response. */
 export function getApiErrorMessage(err, fallback = 'Request failed. Dobara try karein.') {
   const data = err?.response?.data;

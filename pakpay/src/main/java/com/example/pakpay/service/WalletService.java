@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor // Automatically injects final fields
+@RequiredArgsConstructor
 public class WalletService {
 
     private final WalletRepository walletRepo;
@@ -116,6 +116,7 @@ public class WalletService {
         txn.setAmount(amount);
         txn.setStatus(TransactionStatus.SUCCESS); // ENUM: SUCCESS
         txn.setType("WALLET_TRANSFER");
+        txn.setDescription("Transfer to " + receiverMobile);
         txn.setCreatedAt(LocalDateTime.now());
 
         // . Limit Update
@@ -142,11 +143,9 @@ public class WalletService {
     }
     
     public BigDecimal getBalanceByMobile(String mobile) {
-        // 1. Pehle user dhundo
         User user = userRepo.findByMobileNumber(mobile)
                 .orElseThrow(() -> new RuntimeException("User not found with mobile: " + mobile));
         
-        // 2. User ki ID se wallet dhundo
         Wallet wallet = walletRepo.findByUserId(user.getId())
                 .orElseThrow(() -> new RuntimeException("Wallet not found for this user"));
         
@@ -154,69 +153,114 @@ public class WalletService {
     }
     
     public List<TransactionHistoryDTO> getTransactionHistory(String mobileNumber) {
-    	
-    	
         User user = userRepo.findByMobileNumber(mobileNumber)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Hamare repository ka method: find by sender OR receiver
-        List<Transaction> transactions = transactionRepo.findBySenderWalletIdOrReceiverWalletIdOrderByCreatedAtDesc(
-                user.getId(), user.getId());
+        Wallet wallet = walletRepo.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Wallet not found"));
 
-        return transactions.stream().map(trx -> TransactionHistoryDTO.builder()
+        Long walletId = wallet.getId();
+
+        List<Transaction> transactions = transactionRepo
+                .findBySenderWalletIdOrReceiverWalletIdOrderByCreatedAtDesc(walletId, walletId);
+
+        return transactions.stream()
+                .map(trx -> toHistoryDto(trx, walletId, mobileNumber))
+                .collect(Collectors.toList());
+    }
+
+    private TransactionHistoryDTO toHistoryDto(Transaction trx, Long userWalletId, String userMobile) {
+        String trxType = trx.getType() != null ? trx.getType() : "WALLET_TRANSFER";
+        boolean isBankDeposit = "BANK_DEPOSIT".equalsIgnoreCase(trxType);
+        boolean isReceiver = userWalletId.equals(trx.getReceiverWalletId());
+        boolean isSender = trx.getSenderWalletId() != null && userWalletId.equals(trx.getSenderWalletId());
+
+        String displayType;
+        String otherParty;
+
+        if (isBankDeposit && isReceiver) {
+            displayType = "ADD_MONEY";
+            otherParty = trx.getDescription() != null && !trx.getDescription().isBlank()
+                    ? trx.getDescription()
+                    : "Bank deposit";
+        } else if (isSender) {
+            displayType = "SENT";
+            otherParty = resolveCounterpartyMobile(trx.getReceiverWalletId(), "Receiver");
+        } else if (isReceiver) {
+            displayType = "RECEIVED";
+            otherParty = resolveCounterpartyMobile(trx.getSenderWalletId(), "Sender");
+        } else {
+            displayType = "RECEIVED";
+            otherParty = trx.getDescription() != null ? trx.getDescription() : "Transaction";
+        }
+
+        return TransactionHistoryDTO.builder()
                 .trxId(trx.getTrxId())
-                .type(trx.getSenderWalletId().equals(user.getId()) ? "SENT" : "RECEIVED")
+                .type(displayType)
                 .amount(trx.getAmount())
                 .status(trx.getStatus().toString())
                 .date(trx.getCreatedAt())
-                .otherPartyMobile(trx.getSenderWalletId().equals(user.getId()) ? "To Account" : "From Account")
-                .build()).collect(Collectors.toList());
+                .otherPartyMobile(otherParty)
+                .build();
+    }
+
+    private String resolveCounterpartyMobile(Long walletId, String fallback) {
+        if (walletId == null) {
+            return fallback;
+        }
+        return walletRepo.findById(walletId)
+                .flatMap(w -> userRepo.findById(w.getUserId()))
+                .map(User::getMobileNumber)
+                .filter(m -> !SystemWalletService.GATEWAY_MOBILE.equals(m))
+                .orElseGet(() -> walletRepo.findById(walletId)
+                        .map(Wallet::getWalletAccountNumber)
+                        .orElse(fallback));
     }
     
     public String transferFundsByMobile(String senderMobile, String receiverMobile, BigDecimal amount) {
-        // 1. Mobile se User dhundo, User se Wallet ID
         User sender = userRepo.findByMobileNumber(senderMobile)
                 .orElseThrow(() -> new RuntimeException("Sender not found"));
         User receiver = userRepo.findByMobileNumber(receiverMobile)
                 .orElseThrow(() -> new RuntimeException("Receiver not found"));
 
-        // 2. Ab wahi purana transfer logic call karo
-        return transferFunds(sender.getId(), receiver.getId(), amount);
+        Wallet senderWallet = walletRepo.findByUserId(sender.getId())
+                .orElseThrow(() -> new RuntimeException("Sender wallet not found"));
+        Wallet receiverWallet = walletRepo.findByUserId(receiver.getId())
+                .orElseThrow(() -> new RuntimeException("Receiver wallet not found"));
+
+        return transferFunds(senderWallet.getId(), receiverWallet.getId(), amount);
     }
     
     @Transactional(rollbackFor = Exception.class)
-    public String transferFunds(Long senderId, Long receiverId, BigDecimal amount) {
-        log.info("[START] Transfer: From User {} to User {} | Amount: {}", senderId, receiverId, amount);
+    public String transferFunds(Long senderWalletId, Long receiverWalletId, BigDecimal amount) {
+        log.info("[START] Transfer: From Wallet {} to Wallet {} | Amount: {}", senderWalletId, receiverWalletId, amount);
 
-        // 1. Fetch & Lock (Optional for now)
-        Wallet sender = walletRepo.findByUserId(senderId)
-                .orElseThrow(() -> new RuntimeException("Sender not found"));
-        Wallet receiver = walletRepo.findByUserId(receiverId)
-                .orElseThrow(() -> new RuntimeException("Receiver not found"));
+        Wallet sender = walletRepo.findById(senderWalletId)
+                .orElseThrow(() -> new RuntimeException("Sender wallet not found"));
+        Wallet receiver = walletRepo.findById(receiverWalletId)
+                .orElseThrow(() -> new RuntimeException("Receiver wallet not found"));
 
-        // 2. Validate
         if (sender.getBalance().compareTo(amount) < 0) {
-            log.error("[FAILED] Low balance for User: {}", senderId);
+            log.error("[FAILED] Low balance for wallet: {}", senderWalletId);
             throw new RuntimeException("Incomplete transaction: Low Balance");
         }
 
-        // 3. Update Balances
         sender.setBalance(sender.getBalance().subtract(amount));
         receiver.setBalance(receiver.getBalance().add(amount));
 
         walletRepo.save(sender);
         walletRepo.save(receiver);
 
-        // 4. Record Transaction (The Ledger)
-        Transaction txn = new Transaction();
         String uniqueTrxId = "TRX-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
-        
+
         Transaction trx = new Transaction();
         trx.setTrxId(uniqueTrxId);
-        trx.setSenderWalletId(senderId);
-        trx.setReceiverWalletId(receiverId);
+        trx.setSenderWalletId(senderWalletId);
+        trx.setReceiverWalletId(receiverWalletId);
         trx.setAmount(amount);
-        trx.setStatus(TransactionStatus.SUCCESS); // Assuming it always succeeds for now
+        trx.setStatus(TransactionStatus.SUCCESS);
+        trx.setType("WALLET_TRANSFER");
+        trx.setCreatedAt(LocalDateTime.now());
         transactionRepo.save(trx);
 
         log.info("[SUCCESS] Trx ID: {}", trx.getTrxId());

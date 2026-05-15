@@ -12,6 +12,8 @@ import java.util.Optional;
 public interface WalletRepository extends JpaRepository<Wallet, Long> {
     // Custom method to find wallet by User ID
     Optional<Wallet> findByUserId(Long userId);
+
+    Optional<Wallet> findByWalletAccountNumber(String walletAccountNumber);
     
     // Custom JPQL Query: Wallet ke userId ko User table ki id se join kar ke mobile match karega
     @Query("SELECT w FROM Wallet w JOIN User u ON w.userId = u.id WHERE u.mobileNumber = :mobile")
