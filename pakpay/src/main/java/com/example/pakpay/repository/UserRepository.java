@@ -12,6 +12,9 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByMobileNumber(String mobileNumber);
     Optional<User> findByEmail(String email);
+    Optional<User> findByCnicEncrypted(String cnicEncrypted);
+    boolean existsByMobileNumber(String mobileNumber);
+    boolean existsByCnicEncrypted(String cnicEncrypted);
    
     
     @Query("SELECT new com.example.pakpay.dto.UserWalletDTO(u.fullName, u.mobileNumber, u.email, u.transactionPin, w.walletAccountNumber, w.balance) " +

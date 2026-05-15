@@ -6,8 +6,15 @@ import {
   ArrowUpRight, ArrowDownLeft, History, LogIn, QrCode
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { walletService } from '../services/api'; // Make sure this path is correct
+import { walletService } from '../services/api';
 import { useToast } from '../components/ToastProvider';
+import {
+  getApiErrorMessage,
+  normalizeMobile,
+  validateAmount,
+  validateMobile,
+  validateTransactionPin,
+} from '../utils/validation';
 
 const isAuthed = () => !!localStorage.getItem('token');
 
@@ -238,14 +245,19 @@ const Dashboard = () => {
       setPinSetupOpen(true);
       return;
     }
-    if (txData.receiver.length < 11) {
-      return showToast('Mobile number sahi likhein (11 digits).', 'warning');
+    const receiverMobile = normalizeMobile(txData.receiver);
+    const mobileErr = validateMobile(receiverMobile);
+    if (mobileErr) {
+      return showToast(mobileErr, 'warning');
+    }
+    if (receiverMobile === normalizeMobile(userData.mobile)) {
+      return showToast('Apne khud ke number par transfer nahi kar sakte.', 'warning');
     }
 
     setLoading(true);
 
     try {
-      const res = await walletService.checkReceiver(txData.receiver);
+      const res = await walletService.checkReceiver(receiverMobile);
 
       setReceiverName(res.data.fullName);
       setStep(2);
@@ -254,10 +266,7 @@ const Dashboard = () => {
       console.log(err);
 
       // backend error message
-      const message =
-        err?.response?.data?.error || "User nahi mila!";
-
-      showToast(message, 'error');
+      showToast(getApiErrorMessage(err, 'User nahi mila!'), 'error');
 
     } finally {
       setLoading(false);
@@ -312,9 +321,18 @@ const Dashboard = () => {
       setPinSetupOpen(true);
       return;
     }
+    const amountErr = validateAmount(txData.amount);
+    const pinErr = validateTransactionPin(txData.pin);
+    if (amountErr) return showToast(amountErr, 'warning');
+    if (pinErr) return showToast(pinErr, 'warning');
+
     setLoading(true);
     try {
-      await walletService.secureTransfer(txData.receiver, txData.amount, txData.pin);
+      await walletService.secureTransfer(
+        normalizeMobile(txData.receiver),
+        txData.amount,
+        txData.pin.replace(/\D/g, '')
+      );
       showToast(`Rs. ${Number(txData.amount).toLocaleString()} transfer successful.`, 'success');
       
       setIsModalOpen(false);
@@ -325,7 +343,7 @@ const Dashboard = () => {
       await fetchLastTransaction();
 
     } catch (err) {
-      showToast(err.response?.data?.message || 'Transfer fail ho gaya.', 'error');
+      showToast(getApiErrorMessage(err, 'Transfer fail ho gaya.'), 'error');
     } finally {
       setLoading(false);
     }

@@ -3,16 +3,16 @@ package com.example.pakpay.controller;
 import com.example.pakpay.dto.AuthResponse;
 import com.example.pakpay.dto.LoginRequest;
 import com.example.pakpay.dto.RegisterRequest;
-import com.example.pakpay.entity.User;
+import com.example.pakpay.dto.SignupResponse;
 import com.example.pakpay.service.UserService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 import java.util.Map;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "http://localhost:5173")
@@ -27,22 +27,17 @@ public class AuthController {
     }
 
     @PostMapping("/signup")
-    public ResponseEntity<String> signup(@RequestBody RegisterRequest request) {
-        String response = userService.registerUser(
-            request.fullName(), 
-            request.mobileNumber(),
-            request.password(), 
-            request.cnic()
-        );
-        return ResponseEntity.ok(response);
+    public ResponseEntity<SignupResponse> signup(@Valid @RequestBody RegisterRequest request) {
+        SignupResponse response = userService.registerUser(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
-    
+
     @PostMapping("/login")
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<AuthResponse> login(@Valid @RequestBody LoginRequest loginRequest) {
         AuthResponse response = userService.loginUser(loginRequest);
         return ResponseEntity.ok(response);
     }
-    
+
     @PostMapping("/refresh-token")
     public ResponseEntity<?> refreshToken(HttpServletRequest request) {
         String authHeader = request.getHeader("Authorization");
@@ -60,5 +55,4 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
         }
     }
-    
 }

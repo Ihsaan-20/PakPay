@@ -21,7 +21,7 @@ public class User {
     @Column(name = "password_hash", nullable = false)
     private String password; 
 
-    @Column(name = "cnic_encrypted", nullable = false)
+    @Column(name = "cnic_encrypted", unique = true, nullable = false)
     private String cnicEncrypted;
     
     @Column(length = 100)

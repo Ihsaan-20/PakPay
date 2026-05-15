@@ -36,8 +36,18 @@ api.interceptors.response.use(
 export const authService = {
   login: async (mobileNumber, password) => {
     const res = await api.post('/auth/login', { mobileNumber, password });
-    return res.data; 
-  }
+    return res.data;
+  },
+
+  signup: async ({ fullName, mobileNumber, password, cnic }) => {
+    const res = await api.post('/auth/signup', {
+      fullName,
+      mobileNumber,
+      password,
+      cnic,
+    });
+    return res.data;
+  },
 };
 
 export const walletService = {

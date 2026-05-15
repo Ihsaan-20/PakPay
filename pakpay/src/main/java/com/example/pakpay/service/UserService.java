@@ -2,8 +2,12 @@ package com.example.pakpay.service;
 
 import com.example.pakpay.dto.AuthResponse;
 import com.example.pakpay.dto.LoginRequest;
+import com.example.pakpay.dto.RegisterRequest;
+import com.example.pakpay.dto.SignupResponse;
 import com.example.pakpay.dto.UserWalletDTO;
 import com.example.pakpay.entity.User;
+import com.example.pakpay.exception.ConflictException;
+import com.example.pakpay.util.RegistrationValidator;
 import com.example.pakpay.entity.UserToken;
 import com.example.pakpay.entity.Wallet;
 import com.example.pakpay.repository.UserRepository;
@@ -125,9 +129,10 @@ public class UserService {
     	System.out.println("1. Entering loginUser method...");
         
         // Step A: Find User
-        User user = userRepo.findByMobileNumber(loginRequest.mobileNumber())
+        String loginMobile = RegistrationValidator.normalizeMobile(loginRequest.mobileNumber());
+        User user = userRepo.findByMobileNumber(loginMobile)
                 .orElseGet(() -> {
-                    System.out.println("DEBUG >> User NOT FOUND in DB for: " + loginRequest.mobileNumber());
+                    System.out.println("DEBUG >> User NOT FOUND in DB for: " + loginMobile);
                     throw new RuntimeException("User not found!");
                 });
 
@@ -143,16 +148,16 @@ public class UserService {
         }
         
         try {
-            System.out.println("Attempting login for: " + loginRequest.mobileNumber());
+            System.out.println("Attempting login for: " + loginMobile);
             System.out.println("Raw Password from Request: " + loginRequest.password());
             // Step 1: Authentication
             authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(loginRequest.mobileNumber(), loginRequest.password())
+                new UsernamePasswordAuthenticationToken(loginMobile, loginRequest.password())
             );
             System.out.println("Authentication successful!");
 
             // Step 2: Fetch Details
-            UserWalletDTO details = findWalletDetailsByMobile(loginRequest.mobileNumber());
+            UserWalletDTO details = findWalletDetailsByMobile(loginMobile);
             System.out.println("User details found: " + details.fullName());
 
             // Step 3: Tokens
@@ -194,31 +199,45 @@ public class UserService {
     }
     
     @Transactional
-    public String registerUser(String name, String mobile, String rawPassword, String cnic) {
-        // 1. First Name extract karein (Space se split karke)
-        // Agar user "Junaid Khan" likhta hai to "junaid" niklega
-        String firstName = name.split(" ")[0].toLowerCase();
-        String virtualEmail = firstName + "@pakpay.com";
+    public SignupResponse registerUser(RegisterRequest request) {
+        String normalizedMobile = RegistrationValidator.normalizeMobile(request.mobileNumber());
+        String normalizedCnic = RegistrationValidator.normalizeCnic(request.cnic());
 
-        // 2. Create User
+        if (!RegistrationValidator.isValidMobile(normalizedMobile)) {
+            throw new IllegalArgumentException("Mobile number 03XXXXXXXXX format mein hona chahiye.");
+        }
+        if (!RegistrationValidator.isValidCnic(normalizedCnic)) {
+            throw new IllegalArgumentException("CNIC 13 digits ka hona chahiye.");
+        }
+
+        if (userRepo.existsByMobileNumber(normalizedMobile)) {
+            throw new ConflictException("mobileNumber", "Ye mobile number pehle se registered hai.");
+        }
+        if (userRepo.existsByCnicEncrypted(normalizedCnic)) {
+            throw new ConflictException("cnic", "Ye CNIC pehle se registered hai. Ek CNIC sirf ek account ke liye.");
+        }
+
+        String virtualEmail = RegistrationValidator.buildVirtualEmail(normalizedMobile);
+        if (userRepo.findByEmail(virtualEmail).isPresent()) {
+            throw new ConflictException("mobileNumber", "Ye mobile number pehle se registered hai.");
+        }
+
         User user = new User();
-        user.setFullName(name);
-        user.setMobileNumber(mobile);
-        user.setEmail(virtualEmail); // Yahan virtual email set ho gayi
-        user.setPassword(passwordEncoder.encode(rawPassword));
-        user.setCnicEncrypted(cnic);
+        user.setFullName(request.fullName().trim());
+        user.setMobileNumber(normalizedMobile);
+        user.setEmail(virtualEmail);
+        user.setPassword(passwordEncoder.encode(request.password()));
+        user.setCnicEncrypted(normalizedCnic);
         User savedUser = userRepo.save(user);
 
-        // 3. Wallet Account Number Generate
-        String randomAccountNumber = "PK-PAY-" + (int)(Math.random() * 900000 + 100000);
-        
-        // 4. Create Wallet
+        String randomAccountNumber = "PK-PAY-" + (int) (Math.random() * 900000 + 100000);
+
         Wallet wallet = new Wallet();
         wallet.setUserId(savedUser.getId());
         wallet.setBalance(BigDecimal.ZERO);
         wallet.setWalletAccountNumber(randomAccountNumber);
         walletRepo.save(wallet);
 
-        return "Registration successful!";
+        return new SignupResponse("Registration successful!", normalizedMobile);
     }
 }
