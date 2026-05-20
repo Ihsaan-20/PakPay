@@ -42,15 +42,11 @@ public class WhatsAppNotificationService {
         }
 
         String cleanNumber = phoneNumber.replaceAll("[^0-9]", "");
-
-        // Spaces aur dashes saf karlein pehle validation ke liye
-        cleanNumber = cleanNumber.trim().replaceAll("\\s+", "");
-
-        // Validation: Agar 03 se start ho aur length exact 11 ho
-        if (cleanNumber.startsWith("03") && cleanNumber.length() == 11) {
-            cleanNumber = cleanNumber.substring(1); // Pehla character (0) remove krdo -> 3157073692
+        if (cleanNumber.startsWith("0")) {
+            cleanNumber = cleanNumber.substring(1);
+        } else if (cleanNumber.startsWith("92")) {
+            cleanNumber = cleanNumber.substring(2);
         }
-
         String chatId = "92" + cleanNumber + "@c.us";
         System.out.println("Formatted Chat ID: " + chatId);
 

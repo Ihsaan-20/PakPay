@@ -31,6 +31,7 @@ public class AddMoneyService {
     private final WalletRepository walletRepo;
     private final TransactionRepository transactionRepo;
     private final SystemWalletService systemWalletService;
+    private final WhatsAppNotificationService whatsappService;
 
     private final SecureRandom random = new SecureRandom();
 
@@ -75,6 +76,12 @@ public class AddMoneyService {
         record.setVerified(false);
         record.setExpiresAt(LocalDateTime.now().plusMinutes(5));
         BankLinkOtp saved = otpRepo.save(record);
+
+        try {
+            whatsappService.sendOTPNotification(mobile, otp);
+        } catch (Exception e) {
+            System.err.println("WhatsApp notification failed: " + e.getMessage());
+        }
 
         String message = "OTP aap ke registered mobile par bhej diya gaya hai.";
         String demoOtp = demoOtpExposed ? otp : null;
