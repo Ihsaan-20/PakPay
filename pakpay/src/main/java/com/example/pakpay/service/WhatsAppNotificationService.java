@@ -1,5 +1,6 @@
 package com.example.pakpay.service;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -11,40 +12,61 @@ import java.util.Map;
 public class WhatsAppNotificationService {
 
     private final RestClient restClient;
-    
-    // Aapki actual active session ID Jo Postman mein chal rhi hai
-    private final String sessionId = ""; 
+    private final String sessionId;
+    private final boolean isEnabled;
 
-    public WhatsAppNotificationService() {
+    public WhatsAppNotificationService(
+            @Value("${pakpay.whatsapp.base-url}") String baseURL,
+            @Value("${pakpay.whatsapp.api-key}") String apiKey,
+            @Value("${pakpay.whatsapp.session-id}") String sessionId,
+            @Value("${pakpay.whatsapp.enabled:false}") boolean isEnabled) {
+        this.sessionId = sessionId;
+        this.isEnabled = isEnabled;
+
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(5000);
         requestFactory.setReadTimeout(5000);
 
         this.restClient = RestClient.builder()
                 .requestFactory(requestFactory)
-                .baseUrl("http://127.0.0.1:2785/api") // Gateway Base URL
-                .defaultHeader("X-API-Key", "")
+                .baseUrl(baseURL)
+                .defaultHeader("X-API-Key", apiKey)
                 .defaultHeader("Content-Type", "application/json")
                 .build();
     }
 
     public void sendOTPNotification(String phoneNumber, String otpCode) {
-        // Regex sirf numbers rakhega (+ ya spaces sab automatically remove ho jayenge)
-        String cleanNumber = phoneNumber.replaceAll("[^0-9]", "");
-        String chatId = "92"+cleanNumber + "@c.us";
-        System.out.println("Formatted Chat ID: " + chatId);
-        String messageText = "🔒 *Your Security OTP*\n\n" +
-                             "Your one-time password is: *" + otpCode + "*\n" +
-                             "This code is valid for 5 minutes.";
+        if (!isEnabled) {
+            System.out.println("WhatsApp OTP disabled. Skipping send for: " + phoneNumber);
+            return;
+        }
 
-        // Exact Request Body matching OpenWA schema
+        String cleanNumber = phoneNumber.replaceAll("[^0-9]", "");
+
+        // Spaces aur dashes saf karlein pehle validation ke liye
+        cleanNumber = cleanNumber.trim().replaceAll("\\s+", "");
+
+        // Validation: Agar 03 se start ho aur length exact 11 ho
+        if (cleanNumber.startsWith("03") && cleanNumber.length() == 11) {
+            cleanNumber = cleanNumber.substring(1); // Pehla character (0) remove krdo -> 3157073692
+        }
+
+        String chatId = "92" + cleanNumber + "@c.us";
+        System.out.println("Formatted Chat ID: " + chatId);
+
+        String messageText = "🏦 *PakPay* - Security Code\n\n" +
+                             "Your verification code is:\n" +
+                             "*" + otpCode + "*\n\n" +
+                             "This code is valid for 5 minutes.\n" +
+                             "Do not share it with anyone.\n\n" +
+                             "🙏 *PakPay Team*";
+
         Map<String, String> payload = Map.of(
             "chatId", chatId,
             "text", messageText
         );
 
         try {
-            // Target API Endpoint: /sessions/{sessionId}/messages/send-text
             ResponseEntity<String> response = restClient.post()
                     .uri("/sessions/{sessionId}/messages/send-text", sessionId)
                     .body(payload)

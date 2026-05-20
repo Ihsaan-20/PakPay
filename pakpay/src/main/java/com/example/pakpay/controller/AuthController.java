@@ -1,6 +1,10 @@
 package com.example.pakpay.controller;
 
 import com.example.pakpay.dto.AuthResponse;
+import com.example.pakpay.dto.ForgotPasswordResetRequest;
+import com.example.pakpay.dto.ForgotPasswordResponse;
+import com.example.pakpay.dto.ForgotPasswordSendOtpRequest;
+import com.example.pakpay.dto.ForgotPasswordVerifyOtpRequest;
 import com.example.pakpay.dto.LoginRequest;
 import com.example.pakpay.dto.OTPRequestDTO;
 import com.example.pakpay.dto.RegisterRequest;
@@ -61,6 +65,27 @@ public class AuthController {
         }
     }
 
+
+    @PostMapping("/forgot-password/send-otp")
+    public ResponseEntity<ForgotPasswordResponse> forgotPasswordSendOtp(
+            @Valid @RequestBody ForgotPasswordSendOtpRequest request) {
+        ForgotPasswordResponse response = userService.sendPasswordResetOtp(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password/verify-otp")
+    public ResponseEntity<ForgotPasswordResponse> forgotPasswordVerifyOtp(
+            @Valid @RequestBody ForgotPasswordVerifyOtpRequest request) {
+        ForgotPasswordResponse response = userService.verifyPasswordResetOtp(request);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/forgot-password/reset")
+    public ResponseEntity<ForgotPasswordResponse> forgotPasswordReset(
+            @Valid @RequestBody ForgotPasswordResetRequest request) {
+        ForgotPasswordResponse response = userService.resetPassword(request);
+        return ResponseEntity.ok(response);
+    }
 
     @PostMapping("/send-otp")
     public ResponseEntity<String> testOtp(@RequestBody OTPRequestDTO requestDTO) {

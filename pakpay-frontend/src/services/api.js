@@ -48,6 +48,21 @@ export const authService = {
     });
     return res.data;
   },
+
+  forgotPasswordSendOtp: async (mobileNumber) => {
+    const res = await api.post('/auth/forgot-password/send-otp', { mobileNumber });
+    return res.data;
+  },
+
+  forgotPasswordVerifyOtp: async (mobileNumber, otpCode) => {
+    const res = await api.post('/auth/forgot-password/verify-otp', { mobileNumber, otpCode });
+    return res.data;
+  },
+
+  forgotPasswordReset: async (mobileNumber, otpCode, newPassword) => {
+    const res = await api.post('/auth/forgot-password/reset', { mobileNumber, otpCode, newPassword });
+    return res.data;
+  },
 };
 
 export const addMoneyService = {

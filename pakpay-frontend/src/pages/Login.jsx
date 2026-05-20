@@ -140,6 +140,15 @@ const Login = () => {
             {loading ? 'Verifying...' : 'Access Wallet'}
             <ArrowRight size={20} />
           </button>
+
+          <div className="text-center">
+            <Link
+              to="/forgot-password"
+              className="text-slate-500 text-sm font-bold hover:text-indigo-400 transition-colors"
+            >
+              Forgot Password?
+            </Link>
+          </div>
         </form>
 
         <p className="text-center text-slate-500 text-sm mt-8">

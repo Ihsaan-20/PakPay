@@ -1,15 +1,21 @@
 package com.example.pakpay.service;
 
 import com.example.pakpay.dto.AuthResponse;
+import com.example.pakpay.dto.ForgotPasswordResetRequest;
+import com.example.pakpay.dto.ForgotPasswordResponse;
+import com.example.pakpay.dto.ForgotPasswordSendOtpRequest;
+import com.example.pakpay.dto.ForgotPasswordVerifyOtpRequest;
 import com.example.pakpay.dto.LoginRequest;
 import com.example.pakpay.dto.RegisterRequest;
 import com.example.pakpay.dto.SignupResponse;
 import com.example.pakpay.dto.UserWalletDTO;
+import com.example.pakpay.entity.PasswordResetOtp;
 import com.example.pakpay.entity.User;
 import com.example.pakpay.exception.ConflictException;
 import com.example.pakpay.util.RegistrationValidator;
 import com.example.pakpay.entity.UserToken;
 import com.example.pakpay.entity.Wallet;
+import com.example.pakpay.repository.PasswordResetOtpRepository;
 import com.example.pakpay.repository.UserRepository;
 import com.example.pakpay.repository.UserTokenRepository;
 import com.example.pakpay.repository.WalletRepository;
@@ -21,6 +27,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -33,6 +42,8 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final UserTokenRepository userTokenRepo;
+    private final PasswordResetOtpRepository passwordResetOtpRepo;
+    private final WhatsAppNotificationService whatsappService;
     private final AuthenticationManager authenticationManager;
     
     
@@ -239,5 +250,96 @@ public class UserService {
         walletRepo.save(wallet);
 
         return new SignupResponse("Registration successful!", normalizedMobile);
+    }
+
+    @Transactional
+    public ForgotPasswordResponse sendPasswordResetOtp(ForgotPasswordSendOtpRequest request) {
+        String mobile = RegistrationValidator.normalizeMobile(request.mobileNumber());
+
+        User user = userRepo.findByMobileNumber(mobile)
+                .orElseThrow(() -> new RuntimeException("Is mobile number se koi account nahi mila."));
+
+        LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+        int todayCount = passwordResetOtpRepo.countByMobileNumberAndCreatedAtAfter(mobile, todayStart);
+
+        if (todayCount >= 3) {
+            throw new RuntimeException("Aap din mein sirf 3 baar OTP bhej sakte hain. Kal dobara try karein.");
+        }
+
+        String otpCode = String.valueOf((int) ((Math.random() * 900000) + 100000));
+
+        PasswordResetOtp otp = new PasswordResetOtp();
+        otp.setMobileNumber(mobile);
+        otp.setOtpCode(otpCode);
+        otp.setExpiresAt(LocalDateTime.now().plusMinutes(5));
+        passwordResetOtpRepo.save(otp);
+
+        try {
+            whatsappService.sendOTPNotification(mobile, otpCode);
+        } catch (Exception e) {
+            System.err.println("WhatsApp notification failed: " + e.getMessage());
+        }
+
+        return new ForgotPasswordResponse("OTP aapke mobile number par bhej diya gaya hai.");
+    }
+
+    public ForgotPasswordResponse verifyPasswordResetOtp(ForgotPasswordVerifyOtpRequest request) {
+        String mobile = RegistrationValidator.normalizeMobile(request.mobileNumber());
+
+        LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
+        int invalidToday = passwordResetOtpRepo.findTopByMobileNumberOrderByCreatedAtDesc(mobile)
+                .map(PasswordResetOtp::getInvalidAttempts)
+                .orElse(0);
+
+        if (invalidToday >= 3) {
+            throw new RuntimeException("Bohat zyada galat attempts. Kal dobara try karein.");
+        }
+
+        PasswordResetOtp otp = passwordResetOtpRepo.findTopByMobileNumberOrderByCreatedAtDesc(mobile)
+                .orElseThrow(() -> new RuntimeException("Pehle OTP bhejein."));
+
+        if (otp.isVerified()) {
+            throw new RuntimeException("Ye OTP pehle hi verify ho chuka hai.");
+        }
+
+        if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP expire ho chuka hai. Naya OTP bhejein.");
+        }
+
+        if (!otp.getOtpCode().equals(request.otpCode())) {
+            otp.setInvalidAttempts(otp.getInvalidAttempts() + 1);
+            passwordResetOtpRepo.save(otp);
+
+            int remaining = 3 - otp.getInvalidAttempts();
+            if (remaining <= 0) {
+                throw new RuntimeException("Bohat zyada galat attempts. Kal dobara try karein.");
+            }
+            throw new RuntimeException("Galat OTP. Aapke paas " + remaining + " attempt(s) baaqi hain.");
+        }
+
+        otp.setVerified(true);
+        passwordResetOtpRepo.save(otp);
+
+        return new ForgotPasswordResponse("OTP verify ho gaya hai. Ab naya password set karein.");
+    }
+
+    @Transactional
+    public ForgotPasswordResponse resetPassword(ForgotPasswordResetRequest request) {
+        String mobile = RegistrationValidator.normalizeMobile(request.mobileNumber());
+
+        PasswordResetOtp otp = passwordResetOtpRepo.findTopByMobileNumberAndVerifiedTrueOrderByCreatedAtDesc(mobile)
+                .orElseThrow(() -> new RuntimeException("Pehle OTP verify karein."));
+
+        if (otp.getExpiresAt().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("OTP expire ho chuka hai. Dobara OTP bhejein.");
+        }
+
+        User user = userRepo.findByMobileNumber(mobile)
+                .orElseThrow(() -> new RuntimeException("User nahi mila."));
+
+        user.setPassword(passwordEncoder.encode(request.newPassword()));
+        userRepo.save(user);
+
+        return new ForgotPasswordResponse("Password successfully change ho gaya hai.");
     }
 }
